@@ -54,13 +54,19 @@
 
                 <Grid HorizontalAlignment="Left" Width="736" Height="338" >
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="200*"/>
-                        <ColumnDefinition Width="200*"/>
-                        <ColumnDefinition Width="136*"/>
-                        <ColumnDefinition Width="136*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox Grid.Column="0" HorizontalAlignment="Left" Height="34" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top" Width="263" 
-        				x:Name="EmailRecipientText" Margin="10,10,0,0" TabIndex="1" Padding="3" Grid.ColumnSpan="2">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBox Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Height="34" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
+                                        x:Name="EmailRecipientText" Margin="10,10,10,0" TabIndex="1" Padding="3">
                         <TextBox.Style>
                             <Style TargetType="{x:Type TextBox}">
                                 <Setter Property="Background" Value="Transparent" />
@@ -72,13 +78,13 @@
                             </Style>
                         </TextBox.Style>
                     </TextBox>
-                    <Button Grid.Column="1" Content="Send Html Email" HorizontalAlignment="Left" Margin="66,10,0,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendHtmlEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
-                    <Button Grid.Column="2" Content="Send Text Email" HorizontalAlignment="Left" Margin="0,10,0,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
-                    <Button Grid.Column="3" Content="Add Attachment" HorizontalAlignment="Left" Margin="0,10,0,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="AddAttachment" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
+                    <Button Grid.Column="1" Grid.Row="0" Content="Send Html Email" HorizontalAlignment="Left" Margin="10,10,10,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendHtmlEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
+                    <Button Grid.Column="2" Grid.Row="0" Content="Send Text Email" HorizontalAlignment="Left" Margin="10,10,10,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
+                    <Button Grid.Column="3" Grid.Row="0" Content="Add Attachment" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="AddAttachment" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
 
-                    <TextBox Grid.Column="0"  HorizontalAlignment="Left" Height="41" 
-                        FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top" Width="713" 
-        				x:Name="EmailHeader" Margin="10,60,0,0" TabIndex="1" Padding="3" Grid.ColumnSpan="4">
+                    <TextBox Grid.Column="0" Grid.Row="1"  HorizontalAlignment="Stretch" Height="41"
+                        FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
+                                        x:Name="EmailHeader" Margin="10,10,10,0" TabIndex="1" Padding="3" Grid.ColumnSpan="4">
                         <TextBox.Style>
                             <Style TargetType="{x:Type TextBox}">
                                 <Setter Property="Background" Value="Transparent" />
@@ -91,9 +97,9 @@
                         </TextBox.Style>
                     </TextBox>
 
-                    <TextBox Grid.Column="0"  HorizontalAlignment="Left" Height="200" AcceptsReturn="True"
-                        VerticalScrollBarVisibility="Visible" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top" Width="713" 
-        				x:Name="EmailBody" Margin="10,116,0,0" TabIndex="1" Padding="3" Grid.ColumnSpan="4">
+                    <TextBox Grid.Column="0" Grid.Row="2"  HorizontalAlignment="Stretch" Height="200" AcceptsReturn="True"
+                        VerticalScrollBarVisibility="Visible" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
+                                        x:Name="EmailBody" Margin="10,10,10,0" TabIndex="1" Padding="3" Grid.ColumnSpan="4">
                         <TextBox.Style>
                             <Style TargetType="{x:Type TextBox}">
                                 <Setter Property="Background" Value="Transparent" />
@@ -105,6 +111,8 @@
                             </Style>
                         </TextBox.Style>
                     </TextBox>
+
+                    <Button Grid.Column="3" Grid.Row="3" Content="Send Emails From CSV" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="180" Click="SendEmailsFromCsv" Height="34" Background="#FFDDDDDD"/>
                 </Grid>
 
             </GroupBox>
