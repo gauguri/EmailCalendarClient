@@ -5,6 +5,7 @@ using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Text;
 using System.Windows;
 
@@ -199,7 +200,10 @@ namespace GraphEmailClient
 
                     try
                     {
-                        var message = _emailService.CreateStandardEmail(recipient, subject, body);
+                        var signature = EmailSignature.Text;
+                        var message = string.IsNullOrWhiteSpace(signature)
+                            ? _emailService.CreateStandardEmail(recipient, subject, body)
+                            : _emailService.CreateHtmlEmail(recipient, subject, BuildHtmlBody(body, signature));
                         await _aadGraphApiDelegatedClient.SendEmailAsync(message);
                         successCount++;
                     }
@@ -312,6 +316,31 @@ namespace GraphEmailClient
             }
 
             return false;
+        }
+
+        private static string BuildHtmlBody(string body, string signature)
+        {
+            var bodyContent = body ?? string.Empty;
+
+            if (!ContainsLikelyHtml(bodyContent))
+            {
+                bodyContent = WebUtility.HtmlEncode(bodyContent);
+                bodyContent = bodyContent.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
+            }
+
+            var signatureContent = signature ?? string.Empty;
+
+            return string.Concat(bodyContent, "<br/><br/>", signatureContent);
+        }
+
+        private static bool ContainsLikelyHtml(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            return value.Contains("<") && value.Contains(">");
         }
 
         private void SetUserName(IAccount userInfo)

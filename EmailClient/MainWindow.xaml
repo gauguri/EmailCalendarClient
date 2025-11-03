@@ -38,6 +38,17 @@
                     </Grid>
                 </VisualBrush.Visual>
             </VisualBrush>
+            <VisualBrush x:Key="EmailSignatureHint" Stretch="None" AlignmentX="Left" AlignmentY="Top">
+                <VisualBrush.Transform>
+                    <TranslateTransform X="4" Y="7" />
+                </VisualBrush.Transform>
+                <VisualBrush.Visual>
+                    <Grid>
+                        <TextBlock Text="Signature (HTML)" FontWeight="Normal" Foreground="Gray"
+                         FontSize="12" TextAlignment="Justify"/>
+                    </Grid>
+                </VisualBrush.Visual>
+            </VisualBrush>
         </Grid.Resources>
         <StackPanel Grid.Row="0" Margin="5,5,5,0" VerticalAlignment="Top" Height="455">
             <Grid HorizontalAlignment="Left" Width="566">
@@ -63,6 +74,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBox Grid.Column="0" Grid.Row="0" HorizontalAlignment="Stretch" Height="34" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
@@ -112,7 +124,22 @@
                         </TextBox.Style>
                     </TextBox>
 
-                    <Button Grid.Column="3" Grid.Row="3" Content="Send Emails From CSV" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="180" Click="SendEmailsFromCsv" Height="34" Background="#FFDDDDDD"/>
+                    <TextBox Grid.Column="0" Grid.Row="3" HorizontalAlignment="Stretch" Height="100" AcceptsReturn="True"
+                        VerticalScrollBarVisibility="Auto" FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"
+                                        x:Name="EmailSignature" Margin="10,10,10,0" TabIndex="1" Padding="3" Grid.ColumnSpan="4">
+                        <TextBox.Style>
+                            <Style TargetType="{x:Type TextBox}">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding Text, ElementName=EmailSignature}" Value="">
+                                        <Setter Property="Background" Value="{StaticResource EmailSignatureHint}"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBox.Style>
+                    </TextBox>
+
+                    <Button Grid.Column="3" Grid.Row="4" Content="Send Emails From CSV" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="180" Click="SendEmailsFromCsv" Height="34" Background="#FFDDDDDD"/>
                 </Grid>
 
             </GroupBox>
