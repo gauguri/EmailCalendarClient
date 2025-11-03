@@ -199,8 +199,6 @@ namespace GraphEmailClient
                 };
                 parser.SetDelimiters(",");
 
-                _emailService.ClearAttachments();
-
                 while (!parser.EndOfData)
                 {
                     lineNumber++;
