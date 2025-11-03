@@ -103,7 +103,7 @@ namespace GraphEmailClient
             var dlg = new OpenFileDialog();
             if (dlg.ShowDialog() == true)
             {
-                byte[] data = File.ReadAllBytes(dlg.FileName);
+                byte[] data = System.IO.File.ReadAllBytes(dlg.FileName);
                 _emailService.AddAttachment(data, dlg.FileName);
             }
         }
@@ -123,7 +123,7 @@ namespace GraphEmailClient
             byte[] data;
             try
             {
-                data = File.ReadAllBytes(dlg.FileName);
+                data = System.IO.File.ReadAllBytes(dlg.FileName);
             }
             catch (Exception ex)
             {
