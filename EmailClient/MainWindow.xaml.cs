@@ -393,7 +393,7 @@ namespace GraphEmailClient
                 bodyContent = bodyContent.Replace("\r\n", "<br/>").Replace("\n", "<br/>");
             }
 
-            var signatureContent = signature ?? string.Empty;
+            var signatureContent = NormalizeSignatureContent(signature);
 
             return string.Concat(bodyContent, "<br/><br/>", signatureContent);
         }
@@ -406,6 +406,46 @@ namespace GraphEmailClient
             }
 
             return value.Contains("<") && value.Contains(">");
+        }
+
+        private static string NormalizeSignatureContent(string signature)
+        {
+            if (string.IsNullOrEmpty(signature))
+            {
+                return string.Empty;
+            }
+
+            if (ContainsBlockLevelHtml(signature))
+            {
+                return signature;
+            }
+
+            var normalized = signature.Replace("\r\n", "\n").Replace("\r", "\n");
+            return normalized.Replace("\n", "<br/>");
+        }
+
+        private static bool ContainsBlockLevelHtml(string value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return false;
+            }
+
+            string[] blockLevelTags =
+            {
+                "<article", "<div", "<footer", "<header", "<h1", "<h2", "<h3", "<h4", "<h5", "<h6",
+                "<li", "<ol", "<p", "<section", "<table", "<tbody", "<td", "<tfoot", "<th", "<thead", "<tr", "<ul"
+            };
+
+            foreach (var tag in blockLevelTags)
+            {
+                if (value.IndexOf(tag, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void SetUserName(IAccount userInfo)
