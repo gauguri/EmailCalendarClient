@@ -117,6 +117,10 @@ namespace GraphEmailClient
             int failureCount = 0;
             var errorSamples = new List<string>();
             int lineNumber = 0;
+            var recipientIndex = 0;
+            var subjectIndex = 1;
+            var bodyIndex = 2;
+            var headerEvaluated = false;
 
             try
             {
@@ -150,21 +154,41 @@ namespace GraphEmailClient
                         continue;
                     }
 
-                    if (lineNumber == 1 && LooksLikeHeader(fields))
+                    if (!headerEvaluated)
                     {
-                        continue;
+                        headerEvaluated = true;
+
+                        if (TryMapHeader(fields, out var mappedRecipientIndex, out var mappedSubjectIndex, out var mappedBodyIndex))
+                        {
+                            if (mappedRecipientIndex >= 0)
+                            {
+                                recipientIndex = mappedRecipientIndex;
+                            }
+
+                            if (mappedSubjectIndex >= 0)
+                            {
+                                subjectIndex = mappedSubjectIndex;
+                            }
+
+                            if (mappedBodyIndex >= 0)
+                            {
+                                bodyIndex = mappedBodyIndex;
+                            }
+
+                            continue;
+                        }
                     }
 
-                    if (fields.Length < 3)
+                    if (fields.Length <= Math.Max(recipientIndex, Math.Max(subjectIndex, bodyIndex)))
                     {
                         failureCount++;
-                        AppendCsvError(errorSamples, lineNumber, "Expected at least three columns (recipient, subject, body).");
+                        AppendCsvError(errorSamples, lineNumber, "Expected columns for recipient, subject, and body.");
                         continue;
                     }
 
-                    var recipient = fields[0]?.Trim();
-                    var subject = fields[1] ?? string.Empty;
-                    var body = fields[2] ?? string.Empty;
+                    var recipient = GetFieldValue(fields, recipientIndex)?.Trim();
+                    var subject = GetFieldValue(fields, subjectIndex) ?? string.Empty;
+                    var body = GetFieldValue(fields, bodyIndex) ?? string.Empty;
 
                     if (string.IsNullOrWhiteSpace(recipient))
                     {
@@ -231,29 +255,63 @@ namespace GraphEmailClient
             return builder.ToString();
         }
 
-        private static bool LooksLikeHeader(IReadOnlyList<string> fields)
+        private static string GetFieldValue(IReadOnlyList<string> fields, int index)
         {
-            if (fields.Count < 3)
+            return index >= 0 && index < fields.Count ? fields[index] : string.Empty;
+        }
+
+        private static bool TryMapHeader(IReadOnlyList<string> fields, out int recipientIndex, out int subjectIndex, out int bodyIndex)
+        {
+            recipientIndex = -1;
+            subjectIndex = -1;
+            bodyIndex = -1;
+
+            if (fields.Count == 0)
             {
                 return false;
             }
 
-            static bool Matches(string value, params string[] candidates)
+            for (var i = 0; i < fields.Count; i++)
             {
-                foreach (var candidate in candidates)
+                var value = fields[i];
+
+                if (recipientIndex < 0 && Matches(value, "recipient", "email", "emailaddress", "to"))
                 {
-                    if (string.Equals(value, candidate, StringComparison.OrdinalIgnoreCase))
-                    {
-                        return true;
-                    }
+                    recipientIndex = i;
+                    continue;
                 }
 
+                if (subjectIndex < 0 && Matches(value, "subject", "title"))
+                {
+                    subjectIndex = i;
+                    continue;
+                }
+
+                if (bodyIndex < 0 && Matches(value, "body", "message", "content"))
+                {
+                    bodyIndex = i;
+                }
+            }
+
+            if (recipientIndex < 0)
+            {
                 return false;
             }
 
-            return Matches(fields[0], "recipient", "email", "emailaddress")
-                && Matches(fields[1], "subject", "title")
-                && Matches(fields[2], "body", "message", "content");
+            return true;
+        }
+
+        private static bool Matches(string value, params string[] candidates)
+        {
+            foreach (var candidate in candidates)
+            {
+                if (string.Equals(value, candidate, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private void SetUserName(IAccount userInfo)
