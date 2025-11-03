@@ -1,8 +1,11 @@
 ﻿using EmailCalendarsClient.MailSender;
 using Microsoft.Identity.Client;
 using Microsoft.Win32;
+using Microsoft.VisualBasic.FileIO;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using System.Windows;
 
 namespace GraphEmailClient
@@ -95,6 +98,162 @@ namespace GraphEmailClient
                 byte[] data = File.ReadAllBytes(dlg.FileName);
                 _emailService.AddAttachment(data, dlg.FileName);
             }
+        }
+
+        private async void SendEmailsFromCsv(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Select CSV file"
+            };
+
+            if (dlg.ShowDialog() != true)
+            {
+                return;
+            }
+
+            int successCount = 0;
+            int failureCount = 0;
+            var errorSamples = new List<string>();
+            int lineNumber = 0;
+
+            try
+            {
+                using var parser = new TextFieldParser(dlg.FileName)
+                {
+                    TextFieldType = FieldType.Delimited,
+                    HasFieldsEnclosedInQuotes = true
+                };
+                parser.SetDelimiters(",");
+
+                _emailService.ClearAttachments();
+
+                while (!parser.EndOfData)
+                {
+                    lineNumber++;
+                    string[] fields;
+
+                    try
+                    {
+                        fields = parser.ReadFields();
+                    }
+                    catch (MalformedLineException parseEx)
+                    {
+                        failureCount++;
+                        AppendCsvError(errorSamples, lineNumber, $"Malformed CSV: {parseEx.Message}");
+                        continue;
+                    }
+
+                    if (fields == null)
+                    {
+                        continue;
+                    }
+
+                    if (lineNumber == 1 && LooksLikeHeader(fields))
+                    {
+                        continue;
+                    }
+
+                    if (fields.Length < 3)
+                    {
+                        failureCount++;
+                        AppendCsvError(errorSamples, lineNumber, "Expected at least three columns (recipient, subject, body).");
+                        continue;
+                    }
+
+                    var recipient = fields[0]?.Trim();
+                    var subject = fields[1] ?? string.Empty;
+                    var body = fields[2] ?? string.Empty;
+
+                    if (string.IsNullOrWhiteSpace(recipient))
+                    {
+                        failureCount++;
+                        AppendCsvError(errorSamples, lineNumber, "Recipient address is missing.");
+                        continue;
+                    }
+
+                    try
+                    {
+                        var message = _emailService.CreateStandardEmail(recipient, subject, body);
+                        await _aadGraphApiDelegatedClient.SendEmailAsync(message);
+                        successCount++;
+                    }
+                    catch (Exception sendEx)
+                    {
+                        failureCount++;
+                        AppendCsvError(errorSamples, lineNumber, sendEx.Message);
+                    }
+                }
+
+                var summary = BuildCsvSummary(successCount, failureCount, errorSamples);
+                MessageBox.Show(summary, "CSV Email Send", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to process CSV file.\n{ex.Message}", "CSV Email Send", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                _emailService.ClearAttachments();
+            }
+        }
+
+        private static void AppendCsvError(ICollection<string> errors, int lineNumber, string message)
+        {
+            if (errors.Count < 5)
+            {
+                errors.Add($"Line {lineNumber}: {message}");
+            }
+        }
+
+        private static string BuildCsvSummary(int successCount, int failureCount, ICollection<string> errorSamples)
+        {
+            var builder = new StringBuilder();
+            builder.AppendLine($"Emails sent successfully: {successCount}");
+            builder.AppendLine($"Emails failed: {failureCount}");
+
+            if (errorSamples.Count > 0)
+            {
+                builder.AppendLine();
+                builder.AppendLine("Sample errors:");
+                foreach (var error in errorSamples)
+                {
+                    builder.AppendLine(error);
+                }
+
+                if (failureCount > errorSamples.Count)
+                {
+                    builder.AppendLine("...");
+                }
+            }
+
+            return builder.ToString();
+        }
+
+        private static bool LooksLikeHeader(IReadOnlyList<string> fields)
+        {
+            if (fields.Count < 3)
+            {
+                return false;
+            }
+
+            static bool Matches(string value, params string[] candidates)
+            {
+                foreach (var candidate in candidates)
+                {
+                    if (string.Equals(value, candidate, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            return Matches(fields[0], "recipient", "email", "emailaddress")
+                && Matches(fields[1], "subject", "title")
+                && Matches(fields[2], "body", "message", "content");
         }
 
         private void SetUserName(IAccount userInfo)
