@@ -69,6 +69,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -93,6 +94,7 @@
                     <Button Grid.Column="1" Grid.Row="0" Content="Send Html Email" HorizontalAlignment="Left" Margin="10,10,10,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendHtmlEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
                     <Button Grid.Column="2" Grid.Row="0" Content="Send Text Email" HorizontalAlignment="Left" Margin="10,10,10,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="SendEmail" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
                     <Button Grid.Column="3" Grid.Row="0" Content="Add Attachment" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="136" RenderTransformOrigin="-0.013,0.15" Click="AddAttachment" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
+                    <Button Grid.Column="4" Grid.Row="0" Content="Add Inline Image" HorizontalAlignment="Left" Margin="10,10,0,0" VerticalAlignment="Top" Width="150" RenderTransformOrigin="-0.013,0.15" Click="AddInlineImage" Height="34" IsDefault="True" TabIndex="2" Background="#FFDDDDDD"/>
 
                     <TextBox Grid.Column="0" Grid.Row="1"  HorizontalAlignment="Stretch" Height="41"
                         FontSize="12" TextWrapping="Wrap" VerticalAlignment="Top"

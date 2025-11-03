@@ -1,4 +1,5 @@
-﻿using EmailCalendarsClient.MailSender;
+using EmailCalendarsClient.MailSender;
+using Microsoft.Graph;
 using Microsoft.Identity.Client;
 using Microsoft.Win32;
 using Microsoft.VisualBasic.FileIO;
@@ -84,8 +85,14 @@ namespace GraphEmailClient
 
         private async void SendHtmlEmail(object sender, RoutedEventArgs e)
         {
-            var messageHtml = _emailService.CreateHtmlEmail(EmailRecipientText.Text,
-                EmailHeader.Text, EmailBody.Text);
+            var signature = EmailSignature.Text;
+            var body = EmailBody.Text;
+
+            var messageHtml = string.IsNullOrWhiteSpace(signature)
+                ? _emailService.CreateHtmlEmail(EmailRecipientText.Text,
+                    EmailHeader.Text, body)
+                : _emailService.CreateHtmlEmail(EmailRecipientText.Text,
+                    EmailHeader.Text, BuildHtmlBody(body, signature));
 
             await _aadGraphApiDelegatedClient.SendEmailAsync(messageHtml);
             _emailService.ClearAttachments();
@@ -99,6 +106,66 @@ namespace GraphEmailClient
                 byte[] data = File.ReadAllBytes(dlg.FileName);
                 _emailService.AddAttachment(data, dlg.FileName);
             }
+        }
+
+        private void AddInlineImage(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Filter = "Image files (*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tif;*.tiff)|*.png;*.jpg;*.jpeg;*.gif;*.bmp;*.tif;*.tiff|All files (*.*)|*.*"
+            };
+
+            if (dlg.ShowDialog() != true)
+            {
+                return;
+            }
+
+            byte[] data;
+            try
+            {
+                data = File.ReadAllBytes(dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to read the selected file.\n{ex.Message}", "Inline Image", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            FileAttachment attachment;
+            try
+            {
+                attachment = _emailService.AddInlineAttachment(data, dlg.FileName);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to add inline image.\n{ex.Message}", "Inline Image", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            if (attachment == null || string.IsNullOrEmpty(attachment.ContentId))
+            {
+                MessageBox.Show("Unable to create inline image attachment.", "Inline Image", MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+
+            var imgTag = $"<img src=\"cid:{attachment.ContentId}\" alt=\"{attachment.Name}\" />";
+            var existingSignature = EmailSignature.Text ?? string.Empty;
+
+            if (!string.IsNullOrWhiteSpace(existingSignature))
+            {
+                existingSignature = existingSignature.TrimEnd();
+
+                if (!existingSignature.EndsWith("<br/>", StringComparison.OrdinalIgnoreCase))
+                {
+                    existingSignature += "<br/>";
+                }
+
+                existingSignature += Environment.NewLine;
+            }
+
+            EmailSignature.Text = existingSignature + imgTag;
+            EmailSignature.CaretIndex = EmailSignature.Text.Length;
+            EmailSignature.Focus();
         }
 
         private async void SendEmailsFromCsv(object sender, RoutedEventArgs e)
