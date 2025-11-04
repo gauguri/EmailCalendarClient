@@ -1,11 +1,13 @@
 ﻿using Microsoft.Graph;
 using Microsoft.Identity.Client;
+using System;
 using System.Collections.Generic;
 using System.Configuration;
 using System.Globalization;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
+using System.Threading;
 using System.Threading.Tasks;
 using GraphEmailClient;
 
@@ -89,7 +91,7 @@ namespace EmailCalendarsClient.MailSender
             }
         }
 
-        public async Task SendEmailAsync(Message message)
+        public async Task SendEmailAsync(Message message, CancellationToken cancellationToken = default)
         {
             var result = await AcquireTokenSilent();
 
@@ -107,10 +109,59 @@ namespace EmailCalendarsClient.MailSender
 
             var saveToSentItems = true;
 
-            await graphClient.Me
-                .SendMail(message, saveToSentItems)
-                .Request()
-                .PostAsync();
+            await ExecuteWithThrottlingRetries(async () =>
+            {
+                await graphClient.Me
+                    .SendMail(message, saveToSentItems)
+                    .Request()
+                    .PostAsync(cancellationToken)
+                    .ConfigureAwait(false);
+            }, cancellationToken).ConfigureAwait(false);
+        }
+
+        private static async Task ExecuteWithThrottlingRetries(Func<Task> operation, CancellationToken cancellationToken)
+        {
+            const int maxAttempts = 3;
+            var delay = TimeSpan.Zero;
+
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                if (delay > TimeSpan.Zero)
+                {
+                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                }
+
+                try
+                {
+                    await operation().ConfigureAwait(false);
+                    return;
+                }
+                catch (ServiceException ex) when (IsThrottlingStatus(ex))
+                {
+                    delay = GetRetryDelay(ex, attempt);
+                }
+            }
+
+            await operation().ConfigureAwait(false);
+        }
+
+        private static bool IsThrottlingStatus(ServiceException exception)
+        {
+            return exception.StatusCode == System.Net.HttpStatusCode.TooManyRequests
+                   || exception.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable;
+        }
+
+        private static TimeSpan GetRetryDelay(ServiceException exception, int attempt)
+        {
+            var retryAfter = exception.ResponseHeadersRetryAfter?.Delta;
+
+            if (retryAfter.HasValue && retryAfter.Value > TimeSpan.Zero)
+            {
+                return retryAfter.Value;
+            }
+
+            var exponentialBackoffSeconds = Math.Min(30, Math.Pow(2, attempt) * 3);
+            return TimeSpan.FromSeconds(exponentialBackoffSeconds);
         }
 
     }
