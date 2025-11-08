@@ -8,6 +8,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 
 namespace GraphEmailClient
@@ -168,6 +170,9 @@ namespace GraphEmailClient
             EmailSignature.Focus();
         }
 
+        private const int CsvEmailBatchLimit = 20;
+        private static readonly TimeSpan DelayBetweenCsvEmails = TimeSpan.FromSeconds(3);
+
         private async void SendEmailsFromCsv(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog
@@ -189,6 +194,9 @@ namespace GraphEmailClient
             var subjectIndex = 1;
             var bodyIndex = 2;
             var headerEvaluated = false;
+            int attemptedSends = 0;
+            var batchLimitReached = false;
+            var cancellationToken = CancellationToken.None;
 
             try
             {
@@ -269,7 +277,7 @@ namespace GraphEmailClient
                         var message = string.IsNullOrWhiteSpace(signature)
                             ? _emailService.CreateStandardEmail(recipient, subject, body)
                             : _emailService.CreateHtmlEmail(recipient, subject, BuildHtmlBody(body, signature));
-                        await _aadGraphApiDelegatedClient.SendEmailAsync(message);
+                        await _aadGraphApiDelegatedClient.SendEmailAsync(message, cancellationToken);
                         successCount++;
                     }
                     catch (Exception sendEx)
@@ -277,9 +285,26 @@ namespace GraphEmailClient
                         failureCount++;
                         AppendCsvError(errorSamples, lineNumber, sendEx.Message);
                     }
+
+                    attemptedSends++;
+
+                    if (attemptedSends >= CsvEmailBatchLimit)
+                    {
+                        batchLimitReached = !parser.EndOfData;
+                        break;
+                    }
+
+                    try
+                    {
+                        await Task.Delay(DelayBetweenCsvEmails, cancellationToken);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
+                    }
                 }
 
-                var summary = BuildCsvSummary(successCount, failureCount, errorSamples);
+                var summary = BuildCsvSummary(successCount, failureCount, errorSamples, batchLimitReached);
                 MessageBox.Show(summary, "CSV Email Send", MessageBoxButton.OK, MessageBoxImage.Information);
             }
             catch (Exception ex)
@@ -300,7 +325,7 @@ namespace GraphEmailClient
             }
         }
 
-        private static string BuildCsvSummary(int successCount, int failureCount, ICollection<string> errorSamples)
+        private static string BuildCsvSummary(int successCount, int failureCount, ICollection<string> errorSamples, bool batchLimitReached)
         {
             var builder = new StringBuilder();
             builder.AppendLine($"Emails sent successfully: {successCount}");
@@ -319,6 +344,12 @@ namespace GraphEmailClient
                 {
                     builder.AppendLine("...");
                 }
+            }
+
+            if (batchLimitReached)
+            {
+                builder.AppendLine();
+                builder.AppendLine($"Processing stopped after {CsvEmailBatchLimit} emails to avoid throttling. Re-run the import to send the remaining messages.");
             }
 
             return builder.ToString();
