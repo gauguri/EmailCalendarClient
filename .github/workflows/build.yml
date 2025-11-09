@@ -1,0 +1,22 @@
+name: build
+on:
+  push:
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Install the SDK version from global.json if present; otherwise pin 8.0.x
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: ./global.json
+          dotnet-version: '8.0.x'
+          cache: true
+
+      - run: dotnet --info
+      - run: dotnet restore
+      - run: dotnet build EmailClient/EmailClient.csproj -c Release --no-restore
