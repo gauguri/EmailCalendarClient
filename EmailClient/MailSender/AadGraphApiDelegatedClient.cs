@@ -166,34 +166,38 @@ namespace EmailCalendarsClient.MailSender
         {
             retryAfterDelay = default;
 
-            var httpHeaders = exception.ResponseHeaders as HttpResponseHeaders;
-
-            if (httpHeaders != null &&
-                httpHeaders.TryGetValues("Retry-After", out var retryAfterValues) &&
-                TryParseRetryAfterHeaderValues(retryAfterValues, out retryAfterDelay))
+            if (!TryGetRetryAfterHeaderValues(exception.ResponseHeaders, out var headerValues))
             {
-                return true;
+                return false;
             }
 
-            var enumerableHeaders = exception.ResponseHeaders as IDictionary<string, IEnumerable<string>>;
+            return TryParseRetryAfterHeaderValues(headerValues, out retryAfterDelay);
+        }
 
-            if (enumerableHeaders != null &&
-                enumerableHeaders.TryGetValue("Retry-After", out var enumerableValues) &&
-                TryParseRetryAfterHeaderValues(enumerableValues, out retryAfterDelay))
+        private static bool TryGetRetryAfterHeaderValues(object responseHeaders, out IEnumerable<string> headerValues)
+        {
+            const string retryAfterHeaderName = "Retry-After";
+
+            switch (responseHeaders)
             {
-                return true;
+                case HttpResponseHeaders httpHeaders when httpHeaders.TryGetValues(retryAfterHeaderName, out var httpValues):
+                    headerValues = httpValues;
+                    return true;
+
+                case IDictionary<string, IEnumerable<string>> enumerableHeaders
+                    when enumerableHeaders.TryGetValue(retryAfterHeaderName, out var enumerableValues):
+                    headerValues = enumerableValues;
+                    return true;
+
+                case IDictionary<string, string> stringHeaders
+                    when stringHeaders.TryGetValue(retryAfterHeaderName, out var singleValue):
+                    headerValues = new[] { singleValue };
+                    return true;
+
+                default:
+                    headerValues = null;
+                    return false;
             }
-
-            var stringHeaders = exception.ResponseHeaders as IDictionary<string, string>;
-
-            if (stringHeaders != null &&
-                stringHeaders.TryGetValue("Retry-After", out var singleValue) &&
-                TryParseRetryAfterHeaderValue(singleValue, out retryAfterDelay))
-            {
-                return true;
-            }
-
-            return false;
         }
 
         private static bool TryParseRetryAfterHeaderValues(IEnumerable<string> headerValues, out TimeSpan retryAfterDelay)
