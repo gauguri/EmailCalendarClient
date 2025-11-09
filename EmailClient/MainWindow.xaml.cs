@@ -285,24 +285,22 @@ namespace GraphEmailClient
                         failureCount++;
                         AppendCsvError(errorSamples, lineNumber, sendEx.Message);
                     }
-                    finally
+
+                    attemptedSends++;
+
+                    if (attemptedSends >= CsvEmailBatchLimit)
                     {
-                        attemptedSends++;
+                        batchLimitReached = !parser.EndOfData;
+                        break;
+                    }
 
-                        if (attemptedSends >= CsvEmailBatchLimit)
-                        {
-                            batchLimitReached = !parser.EndOfData;
-                            break;
-                        }
-
-                        try
-                        {
-                            await Task.Delay(DelayBetweenCsvEmails, cancellationToken);
-                        }
-                        catch (TaskCanceledException)
-                        {
-                            break;
-                        }
+                    try
+                    {
+                        await Task.Delay(DelayBetweenCsvEmails, cancellationToken);
+                    }
+                    catch (TaskCanceledException)
+                    {
+                        break;
                     }
                 }
 
