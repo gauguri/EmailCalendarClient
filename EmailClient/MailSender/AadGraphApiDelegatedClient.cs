@@ -166,6 +166,13 @@ namespace EmailCalendarsClient.MailSender
         {
             retryAfterDelay = default;
 
+            if (exception.ResponseHeaders is HttpResponseHeaders httpHeaders &&
+                httpHeaders.TryGetValues("Retry-After", out var retryAfterValues) &&
+                TryParseRetryAfterHeaderValues(retryAfterValues, out retryAfterDelay))
+            {
+                return true;
+            }
+
             if (exception.ResponseHeaders is IDictionary<string, IEnumerable<string>> enumerableHeaders &&
                 enumerableHeaders.TryGetValue("Retry-After", out var enumerableValues) &&
                 TryParseRetryAfterHeaderValues(enumerableValues, out retryAfterDelay))
