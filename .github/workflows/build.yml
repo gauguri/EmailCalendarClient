@@ -15,7 +15,6 @@ jobs:
         with:
           global-json-file: ./global.json
           dotnet-version: '8.0.x'
-          cache: true
 
       - run: dotnet --info
       - run: dotnet restore
