@@ -1,10 +1,12 @@
 using EmailCalendarsClient.MailSender;
+using GraphEmailClient.Contacts;
 using Microsoft.Graph;
 using Microsoft.Identity.Client;
 using Microsoft.Win32;
 using Microsoft.VisualBasic.FileIO;
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -18,6 +20,9 @@ namespace GraphEmailClient
     {
         AadGraphApiDelegatedClient _aadGraphApiDelegatedClient = new AadGraphApiDelegatedClient();
         EmailService _emailService = new EmailService();
+        ContactRepository _contactRepository = new ContactRepository();
+
+        public ObservableCollection<ContactDisplay> Contacts { get; } = new ObservableCollection<ContactDisplay>();
 
         const string SignInString = "Sign In";
         const string ClearCacheString = "Clear Cache";
@@ -26,6 +31,8 @@ namespace GraphEmailClient
         {
             InitializeComponent();
             _aadGraphApiDelegatedClient.InitClient();
+            DataContext = this;
+            LoadContacts(showErrors: true);
         }
 
         private async void SignIn(object sender = null, RoutedEventArgs args = null)
@@ -78,11 +85,13 @@ namespace GraphEmailClient
 
         private async void SendEmail(object sender, RoutedEventArgs e)
         {
-            var message = _emailService.CreateStandardEmail(EmailRecipientText.Text, 
+            var message = _emailService.CreateStandardEmail(EmailRecipientText.Text,
                 EmailHeader.Text, EmailBody.Text);
 
             await _aadGraphApiDelegatedClient.SendEmailAsync(message);
             _emailService.ClearAttachments();
+            UpdateContactEmailSent(EmailRecipientText.Text);
+            LoadContacts();
         }
 
         private async void SendHtmlEmail(object sender, RoutedEventArgs e)
@@ -98,6 +107,8 @@ namespace GraphEmailClient
 
             await _aadGraphApiDelegatedClient.SendEmailAsync(messageHtml);
             _emailService.ClearAttachments();
+            UpdateContactEmailSent(EmailRecipientText.Text);
+            LoadContacts();
         }
 
         private void AddAttachment(object sender, RoutedEventArgs e)
@@ -278,6 +289,7 @@ namespace GraphEmailClient
                             ? _emailService.CreateStandardEmail(recipient, subject, body)
                             : _emailService.CreateHtmlEmail(recipient, subject, BuildHtmlBody(body, signature));
                         await _aadGraphApiDelegatedClient.SendEmailAsync(message, cancellationToken);
+                        UpdateContactEmailSent(recipient);
                         successCount++;
                     }
                     catch (Exception sendEx)
@@ -314,6 +326,184 @@ namespace GraphEmailClient
             finally
             {
                 _emailService.ClearAttachments();
+                LoadContacts();
+            }
+        }
+
+        private void ImportContacts(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Filter = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Title = "Select contact CSV"
+            };
+
+            if (dlg.ShowDialog() != true)
+            {
+                return;
+            }
+
+            try
+            {
+                var contacts = ReadContactsFromCsv(dlg.FileName);
+                var count = _contactRepository.UpsertContacts(contacts);
+                LoadContacts();
+                MessageBox.Show($"Imported or updated {count} contact(s).", "Import Contacts", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to import contacts.\n{ex.Message}", "Import Contacts", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
+        private IReadOnlyList<ContactRecord> ReadContactsFromCsv(string fileName)
+        {
+            var contacts = new List<ContactRecord>();
+            using var parser = new TextFieldParser(fileName)
+            {
+                TextFieldType = FieldType.Delimited,
+                HasFieldsEnclosedInQuotes = true
+            };
+            parser.SetDelimiters(",");
+
+            var headerProcessed = false;
+            var companyIndex = -1;
+            var pointPersonIndex = -1;
+            var emailIndex = -1;
+            var lineNumber = 0;
+
+            while (!parser.EndOfData)
+            {
+                lineNumber++;
+                string[] fields;
+
+                try
+                {
+                    fields = parser.ReadFields();
+                }
+                catch (MalformedLineException ex)
+                {
+                    throw new InvalidDataException($"Line {lineNumber}: {ex.Message}");
+                }
+
+                if (fields == null)
+                {
+                    continue;
+                }
+
+                if (!headerProcessed)
+                {
+                    headerProcessed = true;
+                    if (TryMapContactHeader(fields, out var mappedCompany, out var mappedPointPerson, out var mappedEmail))
+                    {
+                        companyIndex = mappedCompany;
+                        pointPersonIndex = mappedPointPerson;
+                        emailIndex = mappedEmail;
+                        continue;
+                    }
+                    else
+                    {
+                        // No header row detected; fall back to default column ordering.
+                        companyIndex = fields.Length > 0 ? 0 : -1;
+                        pointPersonIndex = fields.Length > 1 ? 1 : -1;
+                        emailIndex = fields.Length > 2 ? 2 : -1;
+                    }
+                }
+
+                if (emailIndex < 0 || emailIndex >= fields.Length)
+                {
+                    throw new InvalidDataException("CSV file must contain an Email column.");
+                }
+
+                var email = GetFieldValue(fields, emailIndex)?.Trim();
+                if (string.IsNullOrWhiteSpace(email))
+                {
+                    continue;
+                }
+
+                var contact = new ContactRecord
+                {
+                    Company = companyIndex >= 0 && companyIndex < fields.Length ? GetFieldValue(fields, companyIndex)?.Trim() ?? string.Empty : string.Empty,
+                    PointPerson = pointPersonIndex >= 0 && pointPersonIndex < fields.Length ? GetFieldValue(fields, pointPersonIndex)?.Trim() ?? string.Empty : string.Empty,
+                    Email = email
+                };
+
+                contacts.Add(contact);
+            }
+
+            return contacts;
+        }
+
+        private static bool TryMapContactHeader(IReadOnlyList<string> fields, out int companyIndex, out int pointPersonIndex, out int emailIndex)
+        {
+            companyIndex = -1;
+            pointPersonIndex = -1;
+            emailIndex = -1;
+
+            if (fields.Count == 0)
+            {
+                return false;
+            }
+
+            for (var i = 0; i < fields.Count; i++)
+            {
+                var value = fields[i];
+
+                if (emailIndex < 0 && Matches(value, "email", "emailaddress", "contactemail"))
+                {
+                    emailIndex = i;
+                    continue;
+                }
+
+                if (companyIndex < 0 && Matches(value, "company", "organization", "account", "business"))
+                {
+                    companyIndex = i;
+                    continue;
+                }
+
+                if (pointPersonIndex < 0 && Matches(value, "pointperson", "contact", "name", "representative", "person"))
+                {
+                    pointPersonIndex = i;
+                }
+            }
+
+            return emailIndex >= 0;
+        }
+
+        private void LoadContacts(bool showErrors = false)
+        {
+            Contacts.Clear();
+
+            try
+            {
+                foreach (var record in _contactRepository.GetContacts())
+                {
+                    Contacts.Add(ContactDisplay.FromRecord(record));
+                }
+            }
+            catch (Exception ex)
+            {
+                if (showErrors)
+                {
+                    MessageBox.Show($"Unable to load contacts.\n{ex.Message}", "Contact Database", MessageBoxButton.OK, MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void UpdateContactEmailSent(string recipient)
+        {
+            if (string.IsNullOrWhiteSpace(recipient))
+            {
+                return;
+            }
+
+            try
+            {
+                _contactRepository.UpdateLastEmailSent(recipient, DateTime.UtcNow);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Unable to update contact history.\n{ex.Message}", "Contact Database", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
